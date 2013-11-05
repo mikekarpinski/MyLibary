@@ -1,5 +1,5 @@
 <?php
-
+// MyLibary by Michal Karpinski
 Class FileUpload
 {
 	private $fieldname;
