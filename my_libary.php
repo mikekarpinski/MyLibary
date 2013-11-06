@@ -261,4 +261,207 @@ Class Mail
 		}
 }
 
+Class ImageManipulation
+{
+
+	// Image type support JPG / GIF / PNG  
+
+	protected $image_path;
+	protected $image_type;
+	protected $image;
+	protected $imagex;
+	protected $imagey;
+	protected $fail;
+	protected $image_ratio;
+
+	function __construct($path)
+	{
+		$this->image_path = $path;
+		$this->image_type = exif_imagetype($this->image_path);
+
+		$this->CheckImageType();
+		$this->GetImageSize();
+		
+		return True;	
+	}
+
+	function __destruct() 
+	{
+		if (!$this->fail)
+			{
+				$this->CreateImage();
+			}
+   	}
+
+    protected function GetImageSize()
+    {
+    	$this->imagex = imagesx($this->image);
+		$this->imagey = imagesy($this->image);
+    }
+
+    protected function CheckImageType()
+    {
+    	switch ($this->image_type) {
+			case 1:
+				$this->image = imagecreatefromgif($this->image_path);
+				break;
+			
+			case 2:
+				$this->image = imagecreatefromjpeg($this->image_path);
+				break;
+
+			case 3:
+				$this->image = imagecreatefrompng($this->image_path);
+				break;	
+			
+			default:
+				$this->SetFail();
+				die("Wrong image type");
+				break;
+		}
+    }
+
+    protected function CheckBackgroundShade($x,$y,$width)
+	{
+		$start_x = $x;
+		$start_y = $y;
+		$color_sum = 0;
+		$counter = $width / 10;
+		for ($i=0; $i < $counter; $i++) 
+		{ 
+			$color_index = imagecolorat($this->image, $start_x + ($i*10), $start_y);
+			$color_tran = imagecolorsforindex($this->image, $color_index);
+			if ((array_sum($color_tran)) > 382)
+			{$color_sum++;}
+		}
+		if ($color_sum > ($counter / 2))
+		{
+			return False;
+		}
+		else
+		{
+			return True;
+		}
+	}
+
+    protected function CreateImage()
+    {
+       header('content-type: image/jpeg');
+       imagejpeg($this->image, '', 100);
+       imagedestroy($this->image);
+    }
+
+    protected function SetFail()
+    {
+    	$this->fail = 1;
+    }
+
+    protected function SetImageCenter()
+    {
+    	$centerx =  ($this->imagex / 2);
+    	$centery =  ($this->imagey / 2);
+    	return [$centerx,$centery];
+    }
+
+    protected function SetImageRatio()
+    {
+    	if (!$this->imagex > $this->imagey)
+    	{
+    		$this->image_ratio = $this->imagex / $this->imagey;
+    	}
+    	else
+    	{
+    		$this->image_ratio = $this->imagey / $this->imagex;
+    	}
+    }
+
+	public function ImageInfo()
+	{
+		echo "Image width:  ". imagesx($this->image). "<br />";
+		echo "Image height: ". imagesy($this->image). "<br />";
+	}
+
+	public function AddWaterMark($string)
+	{
+		$white = imagecolorallocate($this->image, 255, 255, 255);
+		$black = imagecolorallocate($this->image, 0, 0, 0);
+		
+		if($this->CheckBackgroundShade(10,$this->imagey,100) == True)
+			{$text_color = $white;}
+		else		
+			{$text_color = $black;}
+
+		
+		// GD Font Location fix - http://php.net/manual/en/function.imagettftext.php 
+		$fontpath = realpath(dirname(__FILE__));
+		putenv('GDFONTPATH='.$fontpath."/fonts");
+		
+
+		$font = 'GeosansLight';
+		imagettftext($this->image, 15, 0, 10, $this->imagey - 10, $text_color, $font, $string . " " . date("Y"));
+	}
+
+
+	public function ImageCrop($width, $height, $force = False )
+	{
+		//$this->SetFail();
+		//Checks if width and height is smaller then image, unless $force is set to True
+		if ((($width > $this->imagex) OR ($height > $this->imagey)) AND ($force != True))
+		{
+			$this->SetFail();
+			echo "Width or Height is bigger then image, use force if you still want to crop image";
+		}
+
+		list($centerx,$centery) = $this->SetImageCenter();
+		/*
+		$white = imagecolorallocate($this->image, 255, 255, 255);
+
+
+
+		    imagerectangle(
+			$this->image, 
+			$centerx - ($width/2), 
+			$centery - ($height/2),
+			$centerx + ($width/2),
+			$centery + ($height/2),
+			$white);
+		
+		
+		$new_dimensions = 
+		[
+			$centerx - ($width/2 ), 
+			$centery - ($height/2),
+			$centerx + ($width/2 ),
+			$centery + ($height/2)
+		];
+		*/
+		$this->SetImageRatio();
+		
+		$new_image = imagecreatetruecolor($width, $height);
+		
+		imagecopyresampled (
+						   $new_image, // Destination image link resource.
+						   $this->image, // Source image link resource.
+						   0, // x-coordinate of destination point.
+						   0, // y-coordinate of destination point.
+						  0,//$centerx - ($width / 2) , // x-coordinate of source point.
+						  0,// $centery - ($height / 2), // y-coordinate of source point.
+						   $width, // Destination width.
+						   $height, // Destination height.
+						   $this->imagex, // Source width.
+			 			   $this->imagey // Source height.
+						   );
+		
+
+
+		
+		$this->image = $new_image;
+		//echo "New image {$width}, {$height} </br>";
+		//echo "Old image {$this->imagex}, {$this->imagex} "; 
+
+	}
+
+	
+}
+
 ?>
